@@ -1,23 +1,14 @@
 <script setup>
-import { Icon } from '@iconify/vue';
+import {Icon} from '@iconify/vue';
 
-import { Swiper, SwiperSlide } from 'swiper/vue';
-import { Autoplay, Navigation, Pagination } from 'swiper/modules';
+import {Swiper, SwiperSlide} from 'swiper/vue';
+import {Autoplay, Navigation, Pagination} from 'swiper/modules';
 
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-const api = useApi();
-
-const newsList = ref([]);
-const culinaryList = ref([]);
-const loading = ref(true);
-const error = ref(null);
-
-const modules = ref([Autoplay, Navigation, Pagination]);
-
-
+const modules = ref([ Autoplay, Navigation, Pagination ]);
 const roomSwiper = ref(null);
 
 const slidePrev = () => {
@@ -28,77 +19,52 @@ const slideNext = () => {
   roomSwiper.value.$el.swiper.slideNext();
 }
 
-const fetchHomeData = async () => {
+const {data: homeData, pending, error: homeError} = await useAsyncData('home', async () => {
+  const api = useApi()
   try {
-    loading.value = true;
-
-    // 並行請求新聞和美食數據
-    const [newsResponse, culinaryResponse] = await Promise.all([
+    const [ newsResponse, culinaryResponse ] = await Promise.all([
       api.getNewsList(),
       api.getCulinaryList()
-    ]);
+    ])
 
-    // 檢查錯誤
-    if (newsResponse.error.value) {
-      throw new Error(newsResponse.error.value.message);
+    return {
+      news: newsResponse.data.value,
+      culinary: culinaryResponse.data.value
     }
-    if (culinaryResponse.error.value) {
-      throw new Error(culinaryResponse.error.value.message);
-    }
-
-    // 更新數據
-    newsList.value = newsResponse.data.value?.result;
-    culinaryList.value = culinaryResponse.data.value?.result;
-
-  } catch (e) {
-    error.value = e.message;
-    console.error('獲取首頁數據失敗:', e);
-  } finally {
-    loading.value = false;
+  } catch (err) {
+    console.error('Failed to fetch home data:', err)
+    throw err
   }
-};
+})
 
-// 頁面載入時獲取數據
-onMounted(async () => {
-  await fetchHomeData();
+const newsList = computed(() => homeData.value?.news.result || [])
+const culinaryList = computed(() => homeData.value?.culinary.result || [])
+
+definePageMeta({
+  middleware: [ "auth" ],
 });
 
 </script>
 
 <template>
-  <div v-if="loading">載入中...</div>
-    <div v-else-if="error">發生錯誤: {{ error }}</div>
-    <div v-else>
-  <main class="overflow-hidden">
+  <div v-if="pending">Loading...</div>
+  <div v-else-if="homeError">Error: {{ homeError }}</div>
+  <main v-else class="overflow-hidden">
     <section class="hero position-relative">
-      <swiper
-        :modules="modules"
-        :slides-per-view="1"
-        :pagination="true"
-        :autoplay="{
-          delay: 3000,
-          disableOnInteraction: false,
-        }"
-      >
-        <swiper-slide
-          v-for="(num, index) in 5"
-          :key="index"
-        >
+      <swiper :modules="modules" :slides-per-view="1" :pagination="true" :autoplay="{
+        delay: 3000,
+        disableOnInteraction: false,
+}">
+        <swiper-slide v-for="(num, index) in 5" :key="index">
           <picture>
-            <source
-              srcset="@/assets/images/home-hero.png"
-              media="(min-width:576px)"
-            >
-            <img
-              class="hero-img"
-              src="@/assets/images/home-hero-sm.png"
-              alt="hero banner"
-            >
+            <source srcset="@/assets/images/home-hero.png" media="(min-width:576px)">
+            <img class="hero-img" src="@/assets/images/home-hero-sm.png" alt="hero banner">
           </picture>
         </swiper-slide>
       </swiper>
 
-      <div class="hero-wrapper d-flex flex-column justify-content-center align-items-center flex-md-row justify-content-md-between gap-md-10 w-100 px-md-20 position-absolute z-2">
+      <div
+           class="hero-wrapper d-flex flex-column justify-content-center align-items-center flex-md-row justify-content-md-between gap-md-10 w-100 px-md-20 position-absolute z-2">
         <div class="d-flex flex-column align-items-center text-center d-md-block text-md-start">
           <div class="mt-10 mb-5 mt-md-0 mb-md-10 text-primary-100 fw-bold">
             <h2>
@@ -118,10 +84,8 @@ onMounted(async () => {
             <p class="text-neutral-40 fw-semibold">
               我們致力於為您提供無與倫比的奢華體驗與優質服務
             </p>
-            <NuxtLink
-              to="/rooms"
-              class="btn btn-neutral-0 d-flex justify-content-end align-items-center gap-3 w-100 text-end text-neutral-100 fs-5 fw-semibold border-0"
-            >
+            <NuxtLink to="/rooms"
+                      class="btn btn-neutral-0 d-flex justify-content-end align-items-center gap-3 w-100 text-end text-neutral-100 fs-5 fw-semibold border-0">
               立即訂房
               <div class="cta-deco" />
             </NuxtLink>
@@ -142,20 +106,11 @@ onMounted(async () => {
             </div>
           </div>
           <div class="col-12 col-md-10 d-flex flex-column gap-10">
-            <div v-for="news in newsList" :key="news.id"
-              class="card bg-transparent border-0"
-            >
+            <div v-for="news in newsList" :key="news.id" class="card bg-transparent border-0">
               <div class="d-flex flex-column flex-md-row align-items-center gap-6">
                 <picture>
-                  <source
-                    :srcset="news.image"
-                    media="(min-width: 576px)"
-                  >
-                  <img
-                    :src="news.image"
-                    class="w-100 rounded-3"
-                    :alt="news.title"
-                  >
+                  <source :srcset="news.image" media="(min-width: 576px)">
+                  <img :src="news.image" class="w-100 rounded-3" :alt="news.title">
                 </picture>
                 <div class="card-body p-0">
                   <h3 class="card-title mb-2 mb-md-6 fw-bold">
@@ -204,32 +159,17 @@ onMounted(async () => {
     </section>
 
     <section class="room-intro position-relative px-3 py-20 px-md-0 py-md-30 bg-neutral-120">
-      <div class="d-flex flex-column flex-md-row justify-content-center align-items-center justify-content-md-start align-items-md-end gap-6 gap-md-20">
-        <swiper
-          ref="roomSwiper"
-          :modules="modules"
-          :slides-per-view="1"
-          :pagination="true"
-          :autoplay="{
-            delay: 5000,
-            disableOnInteraction: false,
-          }"
-          :loop="true"
-        >
-          <swiper-slide
-            v-for="(num, index) in 5"
-            :key="index"
-          >
+      <div
+           class="d-flex flex-column flex-md-row justify-content-center align-items-center justify-content-md-start align-items-md-end gap-6 gap-md-20">
+        <swiper ref="roomSwiper" :modules="modules" :slides-per-view="1" :pagination="true"
+                :autoplay="{
+                  delay: 5000,
+                  disableOnInteraction: false,
+}" :loop="true">
+          <swiper-slide v-for="(num, index) in 5" :key="index">
             <picture>
-              <source
-                srcset="@/assets/images/home-room-1.png"
-                media="(min-width:768px)"
-              >
-              <img
-                class="w-100"
-                src="@/assets/images/home-room-sm-1.png"
-                alt="room-a"
-              >
+              <source srcset="@/assets/images/home-room-1.png" media="(min-width:768px)">
+              <img class="w-100" src="@/assets/images/home-room-sm-1.png" alt="room-a">
             </picture>
           </swiper-slide>
         </swiper>
@@ -244,35 +184,20 @@ onMounted(async () => {
           <div class="mb-6 mb-md-10 fs-3 fw-bold">
             NT$ 10,000
           </div>
-          <NuxtLink
-            to="/rooms"
-            class="btn btn-neutral-0 d-flex justify-content-end align-items-center gap-3 w-100 p-5 p-md-10 mb-6 mb-md-10 text-end text-neutral-100 fs-7 fs-md-5 fw-bold border-0"
-          >
+          <NuxtLink to="/rooms"
+                    class="btn btn-neutral-0 d-flex justify-content-end align-items-center gap-3 w-100 p-5 p-md-10 mb-6 mb-md-10 text-end text-neutral-100 fs-7 fs-md-5 fw-bold border-0">
             查看更多
             <div class="cta-deco" />
           </NuxtLink>
           <div class="d-flex justify-content-end">
-            <button
-              class="bg-transparent text-primary-100 icon-link icon-link-hover border-0"
-              type="button"
-              @click="slidePrev"
-            >
-              <Icon
-                icon="mdi:arrow-left"
-                class="bi m-4"
-                style="font-size: 1.5rem; --bs-icon-link-transform: translateX(-0.25em);"
-              />
+            <button class="bg-transparent text-primary-100 icon-link icon-link-hover border-0"
+                    type="button" @click="slidePrev">
+              <Icon icon="mdi:arrow-left" class="bi m-4"
+                    style="font-size: 1.5rem; --bs-icon-link-transform: translateX(-0.25em);" />
             </button>
-            <button
-              class="bg-transparent text-primary-100 icon-link icon-link-hover border-0"
-              type="button"
-              @click="slideNext"
-            >
-              <Icon
-                icon="mdi:arrow-right"
-                class="bi m-4"
-                style="font-size: 1.5rem;"
-              />
+            <button class="bg-transparent text-primary-100 icon-link icon-link-hover border-0"
+                    type="button" @click="slideNext">
+              <Icon icon="mdi:arrow-right" class="bi m-4" style="font-size: 1.5rem;" />
             </button>
           </div>
         </div>
@@ -289,21 +214,13 @@ onMounted(async () => {
         </div>
         <div class="row flex-nowrap overflow-x-auto">
           <div v-for="culinary in culinaryList" :key="culinary.id" class="col-10 col-md-6 col-xl-4">
-            <div
-              class="card position-relative border-0 rounded-3"
-            >
+            <div class="card position-relative border-0 rounded-3">
               <picture>
-                <source
-                  :srcset="culinary.image"
-                  media="(min-width: 576px)"
-                >
-                <img
-                  class="w-100 rounded-3"
-                  :src="culinary.image"
-                  :alt="culinary.title"
-                >
+                <source :srcset="culinary.image" media="(min-width: 576px)">
+                <img class="w-100 rounded-3" :src="culinary.image" :alt="culinary.title">
               </picture>
-              <div class="card-body position-absolute bottom-0 p-4 p-md-6 rounded-bottom-3  text-neutral-0">
+              <div
+                   class="card-body position-absolute bottom-0 p-4 p-md-6 rounded-bottom-3  text-neutral-0">
                 <div class="d-flex justify-content-between align-items-center mb-4 mb-md-6">
                   <h5 class="card-title mb-0 fw-bold">
                     {{ culinary.title }}
@@ -336,22 +253,13 @@ onMounted(async () => {
               台灣高雄市新興區六角路123號
             </p>
             <picture>
-              <source
-                srcset="@/assets/images/home-map.png"
-                media="(min-width: 576px)"
-              >
-              <img
-                class="w-100"
-                src="@/assets/images/home-map-sm.png"
-                alt="描述地圖中酒店所在的位置"
-              >
+              <source srcset="@/assets/images/home-map.png" media="(min-width: 576px)">
+              <img class="w-100" src="@/assets/images/home-map-sm.png" alt="描述地圖中酒店所在的位置">
             </picture>
           </div>
           <div class="col-12 col-md-4 text-neutral-0">
-            <Icon
-              class="mb-2 mb-md-4 display-1 text-primary-100"
-              icon="ic:baseline-directions-car"
-            />
+            <Icon class="mb-2 mb-md-4 display-1 text-primary-100"
+                  icon="ic:baseline-directions-car" />
             <h5 class="fs-7 fs-md-5 fw-bold">
               自行開車
             </h5>
@@ -360,10 +268,7 @@ onMounted(async () => {
             </p>
           </div>
           <div class="col-12 col-md-4 text-neutral-0">
-            <Icon
-              class="mb-2 mb-md-4 display-1 text-primary-100"
-              icon="ic:baseline-train"
-            />
+            <Icon class="mb-2 mb-md-4 display-1 text-primary-100" icon="ic:baseline-train" />
             <h5 class="fs-7 fs-md-5 fw-bold">
               高鐵/火車
             </h5>
@@ -372,10 +277,7 @@ onMounted(async () => {
             </p>
           </div>
           <div class="col-12 col-md-4 text-neutral-0">
-            <Icon
-              class="mb-2 mb-md-4 display-1 text-primary-100"
-              icon="mdi:car-side"
-            />
+            <Icon class="mb-2 mb-md-4 display-1 text-primary-100" icon="mdi:car-side" />
             <h5 class="fs-7 fs-md-5 fw-bold">
               禮賓車服務
             </h5>
@@ -386,19 +288,13 @@ onMounted(async () => {
         </div>
       </div>
       <picture>
-        <source
-          srcset="@/assets/images/deco-line-group-horizontal-full.svg"
-          media="(min-width:576px)"
-        >
-        <img
-          class="w-100"
-          src="@/assets/images/deco-line-group-horizontal-sm.svg"
-          alt="deco-line-group"
-        >
+        <source srcset="@/assets/images/deco-line-group-horizontal-full.svg"
+                media="(min-width:576px)">
+        <img class="w-100" src="@/assets/images/deco-line-group-horizontal-sm.svg"
+             alt="deco-line-group">
       </picture>
     </section>
   </main>
-    </div>
 </template>
 <style lang="scss" scoped>
 @import "bootstrap/scss/mixins/breakpoints";
@@ -490,6 +386,7 @@ section .btn {
 .hero__intro-content h1 {
   font-size: clamp(3rem, 5.2vw, 6.25rem);
 }
+
 .hero__intro-content p {
   font-size: clamp(1rem, 1.7vw, 2rem);
   margin-bottom: min(5vh, 3.75rem);
@@ -685,7 +582,7 @@ section .btn {
   }
 }
 
-.room-intro .swiper{
+.room-intro .swiper {
   --origin-width: 900;
   --container-width: 1920;
   --percent-width: calc(var(--origin-width) / var(--container-width) * 100vw);
@@ -815,6 +712,4 @@ section .btn {
   width: 60px;
   background-color: #BF9D7D;
 }
-
-
 </style>

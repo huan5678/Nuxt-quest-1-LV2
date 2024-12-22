@@ -1,132 +1,149 @@
 import type { UseFetchOptions } from "nuxt/app";
-
-const BASE_URL = "https://nuxr3.zeabur.app";
-
-const API_PATH = "/api/v1";
+import type {
+  CreateOrderProps,
+  ForgotPasswordProps,
+  LoginProps,
+  RegisterProps,
+  UpdateProfileProps,
+} from "@/types";
 
 export const useApi = () => {
-	const token = useCookie("token");
+  const runtimeConfig = useRuntimeConfig();
+  const { apiBase, apiPath } = runtimeConfig.public;
+  const auth = useAuth();
 
-	const fetchWrapper = async <T>(
-		endpoint: string,
-		options: UseFetchOptions<T> = {},
-	) => {
-		const headers = {
-			...(token.value ? { Authorization: `Bearer ${token.value}` } : {}),
-			...(options.headers || {}),
-		};
+  // 定義不需要 token 的端點列表
+  const publicEndpoints = [
+    '/user/login',
+    '/user/signup',
+    '/user/forgot',
+    '/verify/email',
+    '/verify/generateEmailCode'
+  ];
 
-		return useFetch(endpoint, {
-			baseURL: BASE_URL + API_PATH,
-			...options,
-			headers,
-		});
-	};
+  const fetchWrapper = async <T>(
+    endpoint: string,
+    options: UseFetchOptions<T> = {},
+  ) => {
+    // 基礎 headers
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(options?.headers || {})
+    } as Record<string, string>;
 
-	return {
-		// Auth相關
-		login: (data: { account: string; password: string }) =>
-			fetchWrapper("/user/login", {
-				method: "POST",
-				body: data,
-			}),
+    // 如果不是公開端點，才添加 token
+    if (!publicEndpoints.includes(endpoint)) {
+      try {
+        // 使用 computed 值來獲取最新的 token
+        const currentToken = auth.token.value;
 
-		register: (data: { account: string; password: string; name: string }) =>
-			fetchWrapper("/user/signup", {
-				method: "POST",
-				body: data,
-			}),
+        if (!currentToken && !publicEndpoints.includes(endpoint)) {
+          throw new Error('No authentication token found');
+        }
 
-		forgotPassword: (data: {
-			email: string;
-			code: string;
-			newPassword: string;
-		}) =>
-			fetchWrapper("/user/forgot", {
-				method: "POST",
-				body: data,
-			}),
+        if (currentToken) {
+          headers.Authorization = `Bearer ${currentToken}`;
+        }
+      } catch (e) {
+        if (!publicEndpoints.includes(endpoint)) {
+          console.error('Authentication error:', e);
+          throw new Error('Authentication error');
+        }
+      }
+    }
 
-		checkTokenExpired: () =>
-			fetchWrapper("/user/check", {
-				method: "GET",
-			}),
+    return useFetch(endpoint, {
+      baseURL: apiBase + apiPath,
+      ...options,
+      headers,
+      onResponseError: (error) => {
+        console.error('API Response Error:', error);
+        throw new Error(error?.response?._data?.message || '請求失敗');
+      }
+    });
+  };
 
-		// User相關
-		getProfile: () =>
-			fetchWrapper("/user/", {
-				method: "GET",
-			}),
+  return {
+    // Auth相關 - 不需要認證的操作
+    login: (data: LoginProps) =>
+      fetchWrapper("/user/login", {
+        method: "POST",
+        body: data,
+      }),
 
-		updateProfile: (data: { name: string }) =>
-			fetchWrapper("/user/profile", {
-				method: "PUT",
-				body: data,
-			}),
+    register: (data: RegisterProps) =>
+      fetchWrapper("/user/signup", {
+        method: "POST",
+        body: data,
+      }),
 
-		// Verify
-		verifyEmail: (data: { email: string }) =>
-			fetchWrapper("/verify/email", {
-				method: "POST",
-				body: data,
-			}),
+    forgotPassword: (data: ForgotPasswordProps) =>
+      fetchWrapper("/user/forgot", {
+        method: "POST",
+        body: data,
+      }),
 
-		generateEmailCode: (data: { email: string }) =>
-			fetchWrapper("/verify/generateEmailCode", {
-				method: "POST",
-				body: data,
-			}),
+    // Verify相關 - 不需要認證的操作
+    verifyEmail: (data: { email: string }) =>
+      fetchWrapper("/verify/email", {
+        method: "POST",
+        body: data,
+      }),
 
-		// Home/News - 最新消息
-		getNewsList: () =>
-			fetchWrapper("/home/news/", {
-				method: "GET",
-			}),
+    generateEmailCode: (data: { email: string }) =>
+      fetchWrapper("/verify/generateEmailCode", {
+        method: "POST",
+        body: data,
+      }),
 
-		// Home/Culinary - 美味佳餚
-		getCulinaryList: () =>
-			fetchWrapper("/home/culinary/", {
-				method: "GET",
-			}),
+    // 需要認證的操作
+    checkTokenExpired: () =>
+      fetchWrapper("/user/check", {
+        method: "GET",
+      }),
 
-		// Rooms - 房型
-		getRoomList: () =>
-			fetchWrapper("/rooms/", {
-				method: "GET",
-			}),
-		getRoomDetail: (id: string) =>
-			fetchWrapper(`/rooms/${id}`, {
-				method: "GET",
-			}),
+    getProfile: () =>
+      fetchWrapper("/user/", {
+        method: "GET",
+      }),
 
-		// Orders - 訂單
-		getOrderList: () =>
-			fetchWrapper("/orders/", {
-				method: "GET",
-			}),
-		createOrder: (data: {
-			roomId: string;
-			checkInDate: string;
-			checkOutDate: string;
-			peopleNum: number;
-			userInfo: {
-				address: { zipCode: number; detail: string };
-				name: string;
-				phone: string;
-				email: string;
-			};
-		}) =>
-			fetchWrapper("/orders/", {
-				method: "POST",
-				body: data,
-			}),
-		getOrderDetail: (id: string) =>
-			fetchWrapper(`/orders/${id}`, {
-				method: "GET",
-			}),
-		deleteOrder: (id: string) =>
-			fetchWrapper(`/orders/${id}`, {
-				method: "DELETE",
-			}),
-	};
+    updateProfile: (data: UpdateProfileProps) =>
+      fetchWrapper("/user/profile", {
+        method: "PUT",
+        body: data,
+      }),
+
+    // Orders相關 - 需要認證的操作
+    getOrderList: () =>
+      fetchWrapper("/orders/", {
+        method: "GET",
+      }),
+
+    createOrder: (data: CreateOrderProps) =>
+      fetchWrapper("/orders/", {
+        method: "POST",
+        body: data,
+      }),
+
+    getOrderDetail: (id: string) =>
+      fetchWrapper(`/orders/${id}`, {
+        method: "GET",
+        retry: 1,
+        timeout: 10000,
+      }),
+
+    deleteOrder: (id: string) =>
+      fetchWrapper(`/orders/${id}`, {
+        method: "DELETE",
+      }),
+
+    // 使用 server API 的方法 - 不需要認證
+    getNewsList: () => useFetch("/api/home/news"),
+    getCulinaryList: () => useFetch("/api/home/culinary"),
+    getRoomList: () => useFetch("/api/rooms"),
+    getRoomDetail: (id: string) =>
+      useFetch(`/api/rooms/${id}`, {
+        key: `room-${id}`,
+      }),
+  };
 };
