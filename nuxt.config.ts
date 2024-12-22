@@ -14,7 +14,15 @@ export default defineNuxtConfig({
 	},
 	runtimeConfig: {
 		public: {
-			apiBase: "https://nuxr3.zeabur.app",
+			apiBase: process.env.NUXT_PUBLIC_API_BASE || "https://nuxr3.zeabur.app",
+			apiPath: process.env.NUXT_PUBLIC_API_PATH || "/api/v1",
+		},
+	},
+	modules: ["@pinia/nuxt"],
+  plugins: ["@/plugins/auth.ts"],
+	typescript: {
+		tsConfig: {
+			include: ["./types/*.ts"],
 		},
 	},
 });
