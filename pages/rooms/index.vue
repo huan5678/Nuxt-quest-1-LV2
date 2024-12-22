@@ -8,73 +8,50 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-const modules = ref([Autoplay, Navigation, Pagination]);
-
-const api = useApi();
-
-const roomList = ref([]);
-const loading = ref(true);
-const error = ref(null);
+const modules = ref([ Autoplay, Navigation, Pagination ]);
 
 const { formatCurrency } = useFormatCurrency();
 
-const fetchRoomData = async () => {
+const {data: rooms, pending, error} = await useAsyncData('rooms', async () => {
+  const api = useApi();
   try {
-    loading.value = true;
-
-  const roomResponse = await api.getRoomList();
-  if (roomResponse.error.value) {
-      throw new Error(roomResponse.error.value.message);
-    }
-  roomList.value = roomResponse.data.value?.result;
-  } catch (e) {
-    error.value = e.message;
-    console.error('獲取房間數據失敗:', e);
-  } finally {
-    loading.value = false;
+    const response = await api.getRoomList();
+    return response.data.value;
+  } catch (err) {
+    console.error('Failed to fetch rooms:', err);
+    throw err;
   }
-};
-
-onMounted(async () => {
-  await fetchRoomData();
 });
 
+const roomList = computed(() => rooms.value?.result || []);
 
+// 監控數據變化
+watchEffect(() => {
+  if (error.value) {
+    console.error('Error fetching rooms:', error.value);
+  }
+});
 </script>
 
 <template>
-  <div v-if="loading">載入中...</div>
-    <div v-else-if="error">發生錯誤: {{ error }}</div>
+  <div v-if="pending">載入中...</div>
+  <div v-else-if="error">發生錯誤: {{ roomError }}</div>
   <main v-else>
     <section class="hero position-relative">
-      <swiper
-        :modules="modules"
-        :slides-per-view="1"
-        :pagination="true"
-        :autoplay="{
+      <swiper :modules="modules" :slides-per-view="1" :pagination="true" :autoplay="{
           delay: 3000,
           disableOnInteraction: false,
-        }"
-      >
-        <swiper-slide
-          v-for="(num, index) in 5"
-          :key="index"
-        >
+}">
+        <swiper-slide v-for="(num, index) in 5" :key="index">
           <picture>
-            <source
-              srcset="@/assets/images/home-hero.png"
-              media="(min-width:576px)"
-            >
-            <img
-              class="hero-img"
-              src="@/assets/images/home-hero-sm.png"
-              alt="hero banner"
-            >
+            <source srcset="@/assets/images/home-hero.png" media="(min-width:576px)">
+            <img class="hero-img" src="@/assets/images/home-hero-sm.png" alt="hero banner">
           </picture>
         </swiper-slide>
       </swiper>
 
-      <div class="hero-wrapper d-flex flex-column justify-content-center align-items-center flex-md-row gap-10 gap-md-20 w-100 position-absolute z-2">
+      <div
+           class="hero-wrapper d-flex flex-column justify-content-center align-items-center flex-md-row gap-10 gap-md-20 w-100 position-absolute z-2">
         <div class="d-flex flex-column align-items-center text-center d-md-block text-md-start">
           <div class="mt-10 mb-5 mt-md-0 mb-md-10 text-primary-100 fw-bold">
             <h2 class="fw-semibold">
@@ -101,38 +78,20 @@ onMounted(async () => {
           各種房型，任您挑選
         </h2>
         <ul class="d-flex flex-column gap-6 gap-md-12 list-unstyled">
-          <li
-            v-for="room in roomList" :key="room.id"
-            class="card flex-lg-row border-0 rounded-3xl overflow-hidden"
-          >
+          <li v-for="room in roomList" :key="room.id"
+              class="card flex-lg-row border-0 rounded-3xl overflow-hidden">
             <div class="row">
               <div class="col-12 col-lg-7">
-                <swiper
-                  :modules="modules"
-                  :slides-per-view="1"
-                  navigation
-                  :pagination="{ clickable: true }"
-                  :autoplay="{
-                    delay: 2500,
-                    disableOnInteraction: false,
-                  }"
-                  class="h-100"
-                >
-                  <swiper-slide
-                    v-for="(image, index) in room.imageUrlList"
-                    :key="index"
-                  >
+                <swiper :modules="modules" :slides-per-view="1" navigation
+                        :pagination="{ clickable: true }" :autoplay="{
+                          delay: 2500,
+                          disableOnInteraction: false,
+                        }" class="h-100">
+                  <swiper-slide v-for="(image, index) in room.imageUrlList" :key="index">
                     <picture>
-                      <source
-                        :srcset="image"
-                        media="(min-width: 768px)"
-                      >
-                      <img
-                        class="w-100 h-100 object-fit-cover"
-                        :src="image"
-                        loading="lazy"
-                        :alt="room.name + index"
-                      >
+                      <source :srcset="image" media="(min-width: 768px)">
+                      <img class="w-100 h-100 object-fit-cover" :src="image" loading="lazy"
+                           :alt="room.name + index">
                     </picture>
                   </swiper-slide>
                 </swiper>
@@ -147,46 +106,33 @@ onMounted(async () => {
                   </p>
                   <ul class="d-flex gap-4 mb-6 mb-md-10 list-unstyled">
                     <li class="card-info px-4 py-5 border border-primary-40 rounded-3">
-                      <Icon
-                        class="mb-2 fs-5 text-primary-100"
-                        icon="fluent:slide-size-24-filled"
-                      />
+                      <Icon class="mb-2 fs-5 text-primary-100" icon="fluent:slide-size-24-filled" />
                       <p class="mb-0 fw-bold text-neutral-80 text-nowrap">
                         {{ room.areaInfo }}
                       </p>
                     </li>
                     <li class="card-info px-4 py-5 border border-primary-40 rounded-3">
-                      <Icon
-                        class="mb-2 fs-5 text-primary-100"
-                        icon="material-symbols:king-bed"
-                      />
+                      <Icon class="mb-2 fs-5 text-primary-100" icon="material-symbols:king-bed" />
                       <p class="mb-0 fw-bold text-neutral-80 text-nowrap">
                         {{ room.bedInfo }}
                       </p>
                     </li>
                     <li class="card-info px-4 py-5 border border-primary-40 rounded-3">
-                      <Icon
-                        class="mb-2 fs-5 text-primary-100"
-                        icon="ic:baseline-person"
-                      />
+                      <Icon class="mb-2 fs-5 text-primary-100" icon="ic:baseline-person" />
                       <p class="mb-0 fw-bold text-neutral-80 text-nowrap">
                         2-{{ room.maxPeople }} 人
                       </p>
                     </li>
                   </ul>
                   <div class="deco-line w-100 mb-6 mb-md-10" />
-                  <div class="d-flex justify-content-between align-items-center fs-7 fs-md-5 text-primary-100">
+                  <div
+                       class="d-flex justify-content-between align-items-center fs-7 fs-md-5 text-primary-100">
                     <p class="mb-0 fw-bold">
                       NT$ {{ formatCurrency(room.price) }}
                     </p>
-                    <NuxtLink
-                      :to="`/rooms/${room._id}`"
-                      class="icon-link icon-link-hover text-primary-100"
-                    >
-                      <Icon
-                        class="bi  fs-5"
-                        icon="mdi:arrow-right"
-                      />
+                    <NuxtLink :to="`/rooms/${room._id}`"
+                              class="icon-link icon-link-hover text-primary-100">
+                      <Icon class="bi  fs-5" icon="mdi:arrow-right" />
                     </NuxtLink>
                   </div>
                 </div>

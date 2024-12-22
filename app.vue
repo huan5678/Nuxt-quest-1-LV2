@@ -1,5 +1,13 @@
 <script setup>
-const layout = 'front-layout'
+const layout = useState('layout');
+const auth = useAuth();
+
+// 在應用啟動時初始化
+onMounted(() => {
+  if (import.meta.client) {
+    auth.initialize();
+  }
+});
 </script>
 
 <template>
